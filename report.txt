@@ -1,0 +1,12 @@
+
+
+- main routert
+
+-> WAN
+	enable prevente interface removeal on wan
+	removed block bogon on wan interface and block private
+	ipv6 configuration type: dhcpv6
+	prefix size 56
+-> other
+	track interface
+	set the ip prefix ID
