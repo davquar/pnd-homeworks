@@ -1,11 +1,13 @@
 1. Group number: 29
 
-2. Student names and numbers
+2. Student (Name Surname numbers)
+
 	Davide Quaranta 1715742
 	Alessio Tullio 1809077
 	Edoardo Gabrielli 1693726
 
 3. Initial brainstorming (where you write your considerations about what to do and how)
+
 	After a brief introduction to the network topology and the tools used to handle 
 	the machines (Proxmox), we reasoned all togheter in depth on the ways to better
 	configure the network. 
@@ -22,16 +24,43 @@
 	difficulties you’ve faced and –hopefully– solved)
 
 
-- main routert
+	a) Main router
+	
+		Using the opnsense platform we configured all the interfaces. For 
+		all of them we enabled the prevent interface removal, removed the
+		block bogon and block for private, due to the private addresses we 
+		are using for our network.
 
--> WAN
-	enable prevente interface removeal on wan
-	removed block bogon on wan interface and block private
-	ipv6 configuration type: dhcpv6
-	prefix size 56
--> other
-	track interface
-	set the ip prefix ID
+	The following rules are specific setting for each interface.
+		 
+	WAN interface
+		ipv6 configuration type:	dhcpv6
+		configuration mode:		basic
+		prefix delegation size:		56
+
+		with this setting, the main router ask the ISP for a prefix 
+		delegation of a /56 subnet.		
+	
+	The router will create /64 addresses to assign to the following interface
+	combining the prefix delegated with the the prefix ID specified in each
+	interface.
+	
+	DMZ interfaces:
+		ipv6 configuration type:	track interface
+		ipv6 interface:			WAN
+		ipv6 prefix ID:			0xd		
+	
+	EXTERNAL_CLIENTS interface:
+		ipv6 configuration type:	track interface
+		ipv6 interface:			WAN
+		ipv6 prefix ID:			0xe		
+
+	INTERNAL interface:
+		ipv6 configuration type:	track interface
+		ipv6 interface:			WAN
+		ipv6 prefix ID:			0x0		
+
+	
 
 5.	DNS configuration
 
