@@ -4,7 +4,7 @@
 
 
 
-## Objectives
+## Main Objectives
 
 - Manage and harden the new network infrastructure.
 - Introduce IPv6.
@@ -49,7 +49,7 @@
 | Service   | Host              | Network          |
 | --------- | ----------------- | ---------------- |
 | Webserver | Web Server        | DMZ              |
-| Poxy      | Proxy Server      | DMZ              |
+| Proxy      | Proxy Server      | DMZ              |
 | DNS       | Domain Controller | Internal servers |
 | Syslog    | Log Server        | Internal servers |
 

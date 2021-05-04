@@ -139,6 +139,22 @@ We inserted the code "net.ipv6.conf.all.disable_ipv6 = 1" in /etc/sysctl.conf on
 
 ## 5.	DNS configuration
 
+DC controller configured to use dnsmasq. (need to fix some ipv6 config) 
+See /etc/dnsmasq.d/main.conf for further details. The dc looks at the 
+/etc/hosts.acme29-dc.lan file to resolve ip for hostnames of the acme 
+network, namely for the servers.
+
+
+The main router send the nameserver ip (both ipv4 and ipv6 addresses of 
+the dc) with dhcpv4 and dhcpv6 (through router advertisement) to the 
+External Clients networks.
+
+The internal router send the nameserver ip (both ipv4 and ipv6) with 
+dhcpv4 and dhcpv6 (through router advertisement) respectively to the 
+Internal Clients networks.
+
+
+
 ## 6.	Evaluation of the security policy
 
 ## 7.	Policy implementation in opnsense
