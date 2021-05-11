@@ -1,134 +1,113 @@
 # 1. ACME-29 REPORT
 
-## 2. Student (Name Surname numbers)
+## 2. Student
 
-Edoardo Gabrielli 1693726
-Davide Quaranta 1715742
-Alessio Tullio 1809077
+- Edoardo Gabrielli, 1693726
+- Davide Quaranta, 1715742
+- Alessio Tullio, 1809077
 
 ## 3. Initial brainstorming
 
-After a brief introduction to the network topology and the tools used to handle the machines (Proxmox), we reasoned all togheter in depth on the ways to better configure the network. 
+After a brief introduction to the network topology and the tools offered by the virtual environment (Proxmox), we reasoned on the ways to better configure the network, according to the requirements.
 
-The best solution appeared to be the step by step approach: i.e. starting from configuring the main router, then the neighbour subnetwork (External and DMZ), finally the internal firewall with the Internal and Clients network.
+We opted for a step by step approach: starting from configuring the Main Firewall, then the neighbor subnetworks (External and DMZ), and finally the Internal Firewall with its networks.
 
-For the procedures we choose to follow the one described in the assignment, since the proposed tool appeared to work properly to succesfully complete all the requests.
+### What to do
+
+We followed this plan:
+
+1. Preliminary security issues (credentials change, updates)
+2. IPv6 addressing.
+3. DNS configuration.
+4. Firewall rules.
+
+### How to do it
+
+We decided to configure the IPV6 addressing in this way:
+
+- The Main Router should Obtain a /56 prefix from the ISP via DHCPv6-PD.
+- The Main Router should redistribute the prefix on its interfaces.
+- The Internal Router should receive the prefix from the Main, and redistribute it as well.
+- Each host should receive the prefix and assign itself the Interface ID.
+
+Regarding the DNS:
+
+- DNS (and extra info) should be distributed via DHCPv4 and Router Advertisements, in both the Main and the Internal Routers.
+- The Domain Controller should handle DNS.
 
 ## 4. Setup of the infrastructure for IPv6 addressing
 
 ### a1) Main Firewall-Router
 
-Using the opnsense platform we configured all the interfaces (DMZ, WAN, EXTERNAL_CLIENTS,  INTERNAL). For all of them we enabled the prevent interface removal, removed the block bogon and block for private, due to the private addresses we are using for our network.
+We configured all the interfaces (DMZ, WAN, EXTERNAL_CLIENTS, INTERNAL) using the OPNsense's web interface. For all of them we enabled the options to prevent the interface removal, and removed the block for bogon and private addresses, (due to the private addresses we are using for our network -- ?).
 
-The following rules are specific setting for each interface.
-In assigning the prefix IDs, we opted for a structure close to the ipv4 topology, i.e. for a 6.0/24 ipv4 network, in ipv6 we choose 6 as prefix ID in ipv6 for that subnetwork.	 
+Regarding the prefix IDs, we opted for a structure close to the IPv4 topology, e.g. for a 6.0/24 IPv4 network, we choose 6 as Prefix ID in IPv6 for that subnetwork.
 
 #### WAN interface
 
-- ipv6 configuration type: dhcpv6
-- configuration mode: basic
-- prefix delegation size: 56
+- IPv6 configuration type: DHCPv6
+- Configuration mode: basic
+- Prefix delegation size: 56
 
-With this setting, the main router ask the ISP for a prefix delegation of a /56 subnet.
+With this setting, the main router asks the ISP for a prefix delegation of a /56 subnet.
 
-The router will create /64 addresses to assign to the following interface combining the delegated prefix with the the prefix ID specified in each interface.
+The router will create /64 addresses to assign to the following interfaces, combining the delegated prefix with the the Prefix ID specified in each interface.
 
-#### DMZ interfaces
-
-- ipv6 configuration type: track interface
-- ipv6 interface: WAN
-- ipv6 prefix ID: 0x6
-
-#### EXTERNAL_CLIENTS interface
-
-- ipv6 configuration type: track interface
-- ipv6 interface: WAN
-- ipv6 prefix ID: 0x4		
-
-#### INTERNAL interface:
-
-- ipv6 configuration type: track interface
-- ipv6 interface: WAN
-- ipv6 prefix ID: 0x54		
+| Interface        | Configuration type | Tracked interface | Prefix ID |
+| ---------------- | ------------------ | ----------------- | --------- |
+| DMZ              | Track              | WAN               | 0x6       |
+| EXTERNAL_CLIENTS | Track              | WAN               | 0x4       |
+| INTERNAL         | Track              | WAN               | 0x54      |
 
 ### a2) Internal Firewall-Router
 
-Using the opnsense platform we configured all the interfaces (CLIENTS, EXTERNAL, SERVERS). 
-
-For all of them we enabled the prevent interface removal, removed the block bogon and block for private, due to the private addresses we are using for our network.
-
-The following rules are specific setting for each interface. 
-In assigning the prefix IDs, we opted for a structure close to the ipv4 topology, i.e. for a 6.0/24 ipv4 network, in ipv6 we choose 6 as prefix ID in ipv6 for that subnetwork.
+The IPv6 setup is similar to the Main Router; specifically:
 
 #### EXTERNAL interface
 
-- ipv6 configuration type: dhcpv6
-- configuration mode: basic
-- prefix delegation size: 62
+- IPv6 configuration type: DHCPv6
+- Configuration mode: basic
+- Prefix delegation size: 62
 
-With this setting, the Internal Router ask the main Router for a prefix delegation of a /62 subnet.		
+With this setting, the Internal Router asks the Main Router for a Prefix Delegation of a /62 subnet.
 
 The router will create /64 addresses to assign to the following interface, combining the delegated prefix with the the prefix ID specified in each interface.
 
-#### CLIENTS interface
-
-- ipv6 configuration type: track interface
-- ipv6 interface: EXTERNAL
-- ipv6 prefix ID: 0x1
-
-#### SERVERS interface
-
-- ipv6 configuration type: track interface
-- ipv6 interface: EXTERNAL
-- ipv6 prefix ID: 0x2	
+| Interface | Configuration type | Tracked interface | Prefix ID |
+| --------- | ------------------ | ----------------- | --------- |
+| CLIENTS   | Track              | EXTERNAL          | 0x1       |
+| SERVERS   | Track              | EXTERNAL          | 0x2       |
 
 ### b) SUBNETWORKS
 
-This section will describe the main modification done for each machine in every subnetwork.
+This section will describe the main modifications done to the machines in each subnetwork.
 
-Generally, through the /ext/sysctl.d/99-sysctl.conf file we modified the policy for handling ipv6 addresses. In assigning the addresses, we opted for a structure similar to the ipv4 for the servers, namely. Through a script we managed to set the specific interface ID similar to the ipv4 structure, e.g. the web server set "::2" as interface ID, similar to the ".2" in ipv4. Our goals is to create an "homogeneus network", simplicity is the key.
+Our goal for the static IPv6 addressing was to mirror the IPv4 structure, so if the web server has `100.100.6.2`, the Interface ID should be `::2`.
+
+To set the IPv6 addresses for machines that need a static address (e.g. servers), we decided to use the IP Tokenization approach, which consists in instructing the machine to set a fixed Interface ID to the prefix obtained via Router Advertisements.
+
+For example, to implement it in the webserver, we added a file `/etc/network/if-up/ip-token` with contents:
+
+```bash
+#!/bin/bash
+ip token set ::2 dev eth0
+```
+
+We also modified the `sysctl` configurations (`/etc/sysctl.d/`) to make sure that the machines were appropriately configured for IPv6.
 
 #### DMZ
-
-##### Web servers
-
-We created a script in /etc/network/if-up.d/ip-tunnel with ownership bit 755. This script ensures that the servers creates an ipv6 address from the one advertised by the main router.
-
-The interface ID is ::2.
 
 ##### Proxy server:
 
 We thought that the proxy server doesn't need an ipv6 address, since zentyal does not support ipv6 and it is sufficient to have an ipv4 address to navigate on the internet. For security improvement, we will enforce the firewall rules.
 
+[[[ DA RICONTROLLARE ]]]
+
 #### EXTERNAL services
 
 ##### Client ext 1:
 
-We inserted the code "net.ipv6.conf.all.addr_gen_mode = 3" in /etc/sysctl.conf on the web server.
-
-This ensures that the machine will generate stable privacy addresses for every interfaces, using a random secret.
-
-##### Fantastic coffe:
-
-??? Still not working.
-
-#### INTERNAL services
-
-##### Domain Controller:
-
-We created a script in /etc/network/if-up.d/ip-tunnel with ownership bit 755. 
-
-This script ensures that the servers creates an ipv6 address from the one advertised by the main router.
-
-The interface ID is "::2".
-
-##### Log Server:
-
-We created a script in /etc/network/if-up.d/ip-tunnel with ownership bit 755.
-
-This script ensures that the servers creates an ipv6 address from the one advertised by the main router.
-
-The interface ID is "::3".
+Since this machine is not a server, we preferred to generate a stable privacy address, by setting `net.ipv6.conf.all.addr_gen_mode = 3`" in the `syctl` configurations.
 
 #### CLIENTS
 
@@ -136,29 +115,138 @@ The interface ID is "::3".
 
 We inserted the code "net.ipv6.conf.all.disable_ipv6 = 1" in /etc/sysctl.conf on the arpwatch machine. This disable ipv6 addresses on the host, since we thought not to be needed for the machine to navigate on the internet due to its functions.
 
+[[[ VERIFICARE SE È ANCORA VERO ]]]
+
+---
+
+### IPv6 addresses recap
+
+| Network          | Machine           | Interface ID |
+| ---------------- | ----------------- | ------------ |
+| DMZ              | Web Server        |              |
+| DMZ              | Proxy Server      |              |
+| INTERNAL SERVERS | Domain Controller |              |
+| INTERNAL SERVERS | Log Server        |              |
+| EXTERNAL         | Client ext 1      |              |
+| CLIENTS          | Kali              |              |
 
 ## 5.	DNS configuration
 
-DC controller configured to use dnsmasq. (need to fix some ipv6 config) 
-See /etc/dnsmasq.d/main.conf for further details. The dc looks at the 
-/etc/hosts.acme29-dc.lan file to resolve ip for hostnames of the acme 
-network, namely for the servers.
+To fully support IPv6 in the network we decided to configure the DNS direcrly via `dnsmasq`, instead of relying on the Zentyal interface, since it doesn't support IPv6.
 
+dnsmasq has been configured as follows (`/etc/dnsmasq.d/main.conf`):
 
-The main router send the nameserver ip (both ipv4 and ipv6 addresses of 
-the dc) with dhcpv4 and dhcpv6 (through router advertisement) to the 
-External Clients networks.
+```bash
+# interface to listen on
+interface=eth0
 
-The internal router send the nameserver ip (both ipv4 and ipv6) with 
-dhcpv4 and dhcpv6 (through router advertisement) respectively to the 
-Internal Clients networks.
+# addresses to listen on
+listen-address=::1,2001:470:b5b8:1df1::2,127.0.0.1,100.100.1.2
 
+# nameservers
+server=8.8.8.8
+server=8.8.4.4
+server=2001:4860:4860::8888
+server=2001:4860:4860::8844
 
+# domain configuration, to automatically expand hostnames to fully-qualified domain names (host -> host.acme29-dc.lan)
+expand-hosts
+domain=acme29-dc.lan
+addn-hosts=/etc/hosts.acme29-dc.lan
+
+# do not resolve addresses with /etc/resolv.conf
+no-resolv
+```
+
+The routers send DNS data via DHCPv4 and Router Advertisements.
 
 ## 6.	Evaluation of the security policy
 
-## 7.	Policy implementation in opnsense
+We refined and syntesized the security policy to implement, in order to minimize the rules and generalize them. The policies needed to be evaluated as a whole to fully understand the big picture; for example:
 
-## 8.	Test of configuration
+- "All the services provided by the hosts in the Intenral server network have to be accessible only by the Client network and the DMZ hosts."
+- "All the hosts (but the Client network hosts) have to use the syslog service on the Log server (syslog)"
+
+These two rules ultimately mean that only the DMZ hosts can access the syslog.
+
+[[ INSERIRE RAFFINAMENTO DELLA POLICY COME LO ABBIAMO INTERPRETATO NOI !!]]
+
+## 7.	Policy implementation in OPNsense
+
+[[ METTERE LE REGOLE, E SPIEGARE ALCUNE COSE IMPARATE ]]
+
+## 8.	Test of the configuration
+
+To test whether the configuration was correctly done, we proceeded in this way:
+
+- Ensure that the prefix delegation works, by checking if the OPNsense interface shows a prefix for each interface.
+
+- Ensure that the IP Tokenization mechanism works by:
+  - Shutting the host's interfaces down and up.
+  - Restarting the `networking` service.
+  - Restarting the host.
+- Ensure that the DNS works by checking if hosts can perform DNS queries with the Domain Controller, e.g. with `dig github.com @100.100.1.2` or `host github.com 100.100.1.2`.
+- Ensure that Router Advertisements are correctly set up (e.g. right options, DNS) by:
+  - Inspecting the packets with Wireshark.
+  - Checking the content of `/etc/resolv.conf` in the hosts.
+
+To test the firewall policies we defined and used the following framework:
+
+### DNS (#1)
+
+Test from each host in each network if:
+
+- The internal DNS is correctly set up as resolver.
+- The host can query the internal DNS.
+- The host can't query with a different DNS than the internal.
+- The host can't query with the upstream DNS that the internal uses.
+
+### Web server reachability (#2)
+
+Test from the WAN if:
+
+- The web server can be accessed on port 80 from the WAN.
+- No other host can be accessed from the WAN.
+
+### Proxy reachability (#3, #4)
+
+Test from each ACME-29 host if:
+
+- The proxy can be accessed.
+
+Test from the proxy if:
+
+- It can initiate connection to outside.
+
+### Internal servers reachability (#5)
+
+Test if:
+
+- Hosts in the DMZ can access the internal services.
+- Hosts in the Clients network can access the internal services.
+- Hosts in the External services network can't access the internal services.
+
+### Syslog (#6)
+
+Test if:
+
+- Hosts in the DMZ can access the syslog.
+- No other host can use the syslog.
+
+### SSH (#7)
+
+Test if:
+
+- Hosts in the Clients network can use SSH on every ACME-29 hosts that has an ssh daemon running.
+- No other host can use SSH on hosts in different network.
+
+### Clients web browsing via proxy (#7)
+
+Test if:
+
+- Hosts in the Clients network can access the proxy on ports 80,443.
 
 ## 9.	Final remarks
+
+- [[ parla male di zentyal ]]
+- [[ parla di opnsense ]]
