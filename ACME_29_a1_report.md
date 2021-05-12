@@ -8,7 +8,7 @@
 
 ## 3. Initial brainstorming
 
-After a brief introduction to the network topology and the tools offered by the virtual environment (Proxmox), we reasoned on the ways to better configure the network, according to the requirements.
+After a brief introduction to the network topology and the tools offered by the virtual environment (Proxmox), we reasoned on the best ways to configure the network, according to the requirements.
 
 We opted for a step by step approach: starting from configuring the Main Firewall, then the neighbor subnetworks (External and DMZ), and finally the Internal Firewall with its networks.
 
@@ -27,21 +27,23 @@ We decided to configure the IPV6 addressing in this way:
 
 - The Main Router should Obtain a /56 prefix from the ISP via DHCPv6-PD.
 - The Main Router should redistribute the prefix on its interfaces.
-- The Internal Router should receive the prefix from the Main, and redistribute it as well.
-- Each host should receive the prefix and assign itself the Interface ID.
+- The Internal Router should ask a prefix delegation from the Main, and redistribute it as well.
+- Each host should receive the prefix and assign itself the Interface ID (SLAAC approach).
 
 Regarding the DNS:
 
-- DNS (and extra info) should be distributed via DHCPv4 and Router Advertisements, in both the Main and the Internal Routers.
-- The Domain Controller should handle DNS.
+- DNS (and extra info) should be distributed either via DHCPv4 and Router Advertisements, from both the Main and the Internal Routers.
+- The Domain Controller should act as a DNS.
 
 ## 4. Setup of the infrastructure for IPv6 addressing
+
+In assigning ipv6 addressing we faced many troubles. In the end we understood that, when a router has some mismatch in the configuration of a service, it will not start that service (in our case DHCPv6 server).
 
 ### a1) Main Firewall-Router
 
 We configured all the interfaces (DMZ, WAN, EXTERNAL_CLIENTS, INTERNAL) using the OPNsense's web interface. For all of them we enabled the options to prevent the interface removal, and removed the block for bogon and private addresses, (due to the private addresses we are using for our network -- ?).
 
-Regarding the prefix IDs, we opted for a structure close to the IPv4 topology, e.g. for a 6.0/24 IPv4 network, we choose 6 as Prefix ID in IPv6 for that subnetwork.
+Regarding the prefix IDs, we opted for a structure close to the IPv4 topology, e.g. for a x.x.6.0/24 IPv4 network, we choose "6" as Prefix ID in IPv6 for that subnetwork.
 
 #### WAN interface
 
@@ -61,7 +63,7 @@ The router will create /64 addresses to assign to the following interfaces, comb
 
 ### a2) Internal Firewall-Router
 
-The IPv6 setup is similar to the Main Router; specifically:
+The IPv6 setup is similar to the Main Router. In particular:
 
 #### EXTERNAL interface
 
@@ -71,7 +73,7 @@ The IPv6 setup is similar to the Main Router; specifically:
 
 With this setting, the Internal Router asks the Main Router for a Prefix Delegation of a /62 subnet.
 
-The router will create /64 addresses to assign to the following interface, combining the delegated prefix with the the prefix ID specified in each interface.
+The router will create /64 addresses to assign to the following interface, combining the delegated prefix with the prefix ID specified in each interface.
 
 | Interface | Configuration type | Tracked interface | Prefix ID |
 | --------- | ------------------ | ----------------- | --------- |
@@ -99,7 +101,7 @@ We also modified the `sysctl` configurations (`/etc/sysctl.d/`) to make sure tha
 
 ##### Proxy server:
 
-We thought that the proxy server doesn't need an ipv6 address, since zentyal does not support ipv6 and it is sufficient to have an ipv4 address to navigate on the internet. For security improvement, we will enforce the firewall rules.
+//We thought that the proxy server doesn't need an ipv6 address, since zentyal does ///not support ipv6 and it is sufficient to have an ipv4 address to navigate on the ////internet. For security improvement, we will enforce the firewall rules.
 
 [[[ DA RICONTROLLARE ]]]
 
@@ -113,7 +115,7 @@ Since this machine is not a server, we preferred to generate a stable privacy ad
 
 ##### Arpwatch:
 
-We inserted the code "net.ipv6.conf.all.disable_ipv6 = 1" in /etc/sysctl.conf on the arpwatch machine. This disable ipv6 addresses on the host, since we thought not to be needed for the machine to navigate on the internet due to its functions.
+We inserted the code `net.ipv6.conf.all.disable_ipv6 = 1` in /etc/sysctl.conf on the arpwatch machine. This disable ipv6 addresses on the host, since we thought not to be needed for the machine to navigate on the internet due to its functions.
 
 [[[ VERIFICARE SE È ANCORA VERO ]]]
 
@@ -123,18 +125,19 @@ We inserted the code "net.ipv6.conf.all.disable_ipv6 = 1" in /etc/sysctl.conf on
 
 | Network          | Machine           | Interface ID |
 | ---------------- | ----------------- | ------------ |
-| DMZ              | Web Server        |              |
-| DMZ              | Proxy Server      |              |
-| INTERNAL SERVERS | Domain Controller |              |
-| INTERNAL SERVERS | Log Server        |              |
-| EXTERNAL         | Client ext 1      |              |
-| CLIENTS          | Kali              |              |
+| DMZ              | Web Server        |      ::2     |
+| DMZ              | Proxy Server      |      ::3     |
+| INTERNAL SERVERS | Domain Controller |      ::2     |
+| INTERNAL SERVERS | Log Server        |      ::3     |
+| EXTERNAL         | fanstaticcoffee   |      ::10    |
+| EXTERNAL         | Client ext 1      |  privacy_ip  |
+| CLIENTS          | Kali              |  privacy_ip  |
 
 ## 5.	DNS configuration
 
-To fully support IPv6 in the network we decided to configure the DNS direcrly via `dnsmasq`, instead of relying on the Zentyal interface, since it doesn't support IPv6.
+To fully support IPv6 in the network we decided to configure the DNS directly via `dnsmasq`, instead of relying on the Zentyal interface, since it doesn't support IPv6.
 
-dnsmasq has been configured as follows (`/etc/dnsmasq.d/main.conf`):
+Dnsmasq has been configured as follows (`/etc/dnsmasq.d/main.conf`):
 
 ```bash
 # interface to listen on
@@ -157,14 +160,15 @@ addn-hosts=/etc/hosts.acme29-dc.lan
 # do not resolve addresses with /etc/resolv.conf
 no-resolv
 ```
-
-The routers send DNS data via DHCPv4 and Router Advertisements.
+NOTE: 
+- the `/etc/hosts.acme29-dc.lan` file containts a list of both ipv4 and ipv6 for each host within the Acme network.
+- The routers send DNS info via DHCPv4 and Router Advertisements.
 
 ## 6.	Evaluation of the security policy
 
 We refined and syntesized the security policy to implement, in order to minimize the rules and generalize them. The policies needed to be evaluated as a whole to fully understand the big picture; for example:
 
-- "All the services provided by the hosts in the Intenral server network have to be accessible only by the Client network and the DMZ hosts."
+- "All the services provided by the hosts in the Internal server network have to be accessible only by the Client network and the DMZ hosts."
 - "All the hosts (but the Client network hosts) have to use the syslog service on the Log server (syslog)"
 
 These two rules ultimately mean that only the DMZ hosts can access the syslog.
@@ -175,7 +179,20 @@ These two rules ultimately mean that only the DMZ hosts can access the syslog.
 
 [[ METTERE LE REGOLE, E SPIEGARE ALCUNE COSE IMPARATE ]]
 
+The complete list of firewall rules are reported in `[ INSERT HERE THE FILE NAMEs]`.
+
+During the implementation of the rules, we learned how scalable is the Opnsense firewall, thanks to its stafullness and to the aliases:
+- a statefull firewall means: if a router has, for example, 3 interfaces A, B and C, and we implement a rule to accept some traffic X on the A interface, the firewall will autogenerate the rules to accept the responses that comes from B or/and C for that type of traffic X.
+For this reason, for each interface, we only had to setup the rules for the input direction;
+- Aliases means that you can specify a name and associate to it multiple hosts ip or networks prefix. So we created aliases for ALL the servers, all subnetworks and one for the full ACME29 network, including both ipv4 and ipv6 addresses.
+
+We set "DENY" as DEFAULT policy for each interface in both the routers, this ensures that every traffic, not specifically allowed, will be dropped.
+
+[[[ ### EXAMPLE OF ONE RULE HERE ]]]
+
 ## 8.	Test of the configuration
+
+All the following tests have been done using both ipv4 and ipv6.
 
 To test whether the configuration was correctly done, we proceeded in this way:
 
