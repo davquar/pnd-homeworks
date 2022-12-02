@@ -8,4 +8,4 @@ This repository contains the reports of the homeworks done for the **Practical N
 
 ## Structure
 
-Each directory is a specific homework. Homeworks have a description of the problem (what to do) and a report (solution), the latter written by us.
+Each directory is a specific homework. Homeworks have a description of the problem (requirements) and a report (solution), the latter written by us.
